@@ -190,13 +190,23 @@ class OutlineIcons:
 
     @staticmethod
     def _draw_move(p: QPainter) -> None:
-        """Draw outline transfer / move icon."""
+        """Draw outline transfer / move icon pointing right."""
         assert p is not None, "Painter must not be None"
         assert p.isActive(), "Painter must be active"
         p.drawRoundedRect(QRectF(4, 4, 16, 16), 2, 2)
         p.drawLine(QPointF(8, 12), QPointF(16, 12))
         p.drawLine(QPointF(13, 9), QPointF(16, 12))
         p.drawLine(QPointF(13, 15), QPointF(16, 12))
+
+    @staticmethod
+    def _draw_move_left(p: QPainter) -> None:
+        """Draw outline transfer / move icon pointing left."""
+        assert p is not None, "Painter must not be None"
+        assert p.isActive(), "Painter must be active"
+        p.drawRoundedRect(QRectF(4, 4, 16, 16), 2, 2)
+        p.drawLine(QPointF(16, 12), QPointF(8, 12))
+        p.drawLine(QPointF(11, 9), QPointF(8, 12))
+        p.drawLine(QPointF(11, 15), QPointF(8, 12))
 
     @staticmethod
     def _draw_trash(p: QPainter) -> None:

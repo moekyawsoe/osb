@@ -100,20 +100,23 @@ class JobsView(QWidget):
     def _create_jobs_table(self) -> QTableWidget:
         """Construct the jobs table widget."""
         table = QTableWidget()
-        table.setColumnCount(8)
+        table.setColumnCount(9)
         table.setHorizontalHeaderLabels([
-            "ID", "Type", "Source", "Destination", "Progress", "Speed", "ETA", "Status"
+            "ID", "Type", "Source", "Destination", "Current File", "Progress", "Speed", "ETA", "Status"
         ])
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        table.setColumnWidth(4, 140)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        table.setColumnWidth(2, 160)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        table.setColumnWidth(3, 160)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        table.setColumnWidth(5, 130)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
 
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -131,7 +134,6 @@ class JobsView(QWidget):
         self._toggle_btn.setText(btn_text)
         assert self._toggle_btn is not None, "Toggle button required"
 
-
     def _connect_signals(self) -> None:
         """Bind transfer manager signals to UI slots."""
         assert self._mgr is not None, "Manager must be present"
@@ -142,6 +144,7 @@ class JobsView(QWidget):
     def _on_job_added(self, job: TransferJob) -> None:
         """Insert row for new background job."""
         assert isinstance(job, TransferJob), "Must be TransferJob"
+        assert self._table is not None, "Table must exist"
         row = self._table.rowCount()
         self._table.insertRow(row)
         self._row_map[job.job_id] = row
@@ -152,19 +155,21 @@ class JobsView(QWidget):
         dst_label = f"{job.dst_remote}:{job.dst_path}" if job.dst_remote else job.dst_path
         self._table.setItem(row, 2, QTableWidgetItem(src_label))
         self._table.setItem(row, 3, QTableWidgetItem(dst_label))
+        self._table.setItem(row, 4, QTableWidgetItem(job.current_file or "--"))
 
         pbar = QProgressBar()
         pbar.setRange(0, 100)
         pbar.setValue(int(job.percentage))
-        self._table.setCellWidget(row, 4, pbar)
+        self._table.setCellWidget(row, 5, pbar)
 
-        self._table.setItem(row, 5, QTableWidgetItem(job.speed_str))
-        self._table.setItem(row, 6, QTableWidgetItem(job.eta_str))
-        self._table.setItem(row, 7, QTableWidgetItem(job.status.value.upper()))
+        self._table.setItem(row, 6, QTableWidgetItem(job.speed_str))
+        self._table.setItem(row, 7, QTableWidgetItem(job.eta_str))
+        self._table.setItem(row, 8, QTableWidgetItem(job.status.value.upper()))
 
     def _on_job_updated(self, job_id: str) -> None:
         """Update metrics for an existing job row."""
         assert isinstance(job_id, str), "Job ID must be string"
+        assert self._table is not None, "Table must exist"
         if job_id not in self._row_map:
             return
         row = self._row_map[job_id]
@@ -172,13 +177,20 @@ class JobsView(QWidget):
         if not job:
             return
 
-        pbar = self._table.cellWidget(row, 4)
+        file_item = self._table.item(row, 4)
+        file_val = job.current_file if job.current_file else ("Completed" if job.status == JobStatus.COMPLETED else "--")
+        if file_item:
+            file_item.setText(file_val)
+        else:
+            self._table.setItem(row, 4, QTableWidgetItem(file_val))
+
+        pbar = self._table.cellWidget(row, 5)
         if isinstance(pbar, QProgressBar):
             pbar.setValue(int(job.percentage))
 
-        self._table.setItem(row, 5, QTableWidgetItem(job.speed_str))
-        self._table.setItem(row, 6, QTableWidgetItem(job.eta_str))
-        self._table.setItem(row, 7, QTableWidgetItem(job.status.value.upper()))
+        self._table.setItem(row, 6, QTableWidgetItem(job.speed_str))
+        self._table.setItem(row, 7, QTableWidgetItem(job.eta_str))
+        self._table.setItem(row, 8, QTableWidgetItem(job.status.value.upper()))
 
     def _on_job_finished(self, job_id: str, success: bool, msg: str) -> None:
         """Update finished state and icon in status column."""

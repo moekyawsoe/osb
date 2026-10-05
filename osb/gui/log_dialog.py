@@ -5,6 +5,7 @@ Complies with NASA JPL Power of 10 rules.
 
 from typing import Optional
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -128,5 +129,5 @@ class ActionLogsDialog(QDialog):
     def _scroll_to_bottom(self) -> None:
         """Auto-scroll log viewer to the latest line."""
         cursor = self._text_area.textCursor()
-        cursor.movePosition(cursor.MoveMode.End)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
         self._text_area.setTextCursor(cursor)

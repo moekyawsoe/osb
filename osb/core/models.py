@@ -78,6 +78,7 @@ class TransferJob:
     percentage: float = 0.0
     speed_str: str = "0 B/s"
     eta_str: str = "--"
+    current_file: str = ""
     error_message: str = ""
     start_time: float = field(default_factory=time.time)
     end_time: float = 0.0

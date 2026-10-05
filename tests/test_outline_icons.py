@@ -16,7 +16,7 @@ class TestOutlineIcons(unittest.TestCase):
         icon_names = [
             "bucket", "server", "folder", "folder_plus", "file",
             "arrow_right", "arrow_left", "arrow_up", "refresh", "sync",
-            "copy", "move", "trash", "plus", "check", "cross",
+            "copy", "move", "move_left", "trash", "plus", "minus", "check", "cross",
             "search", "settings", "info", "stop", "play",
         ]
 

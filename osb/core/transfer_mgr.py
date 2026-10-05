@@ -34,7 +34,7 @@ from osb.core.utils import build_rclone_target, format_bytes, format_rate
 class TransferWorker(QThread):
     """Worker thread running rclone transfer subprocess and parsing streaming telemetry."""
 
-    progress_signal = pyqtSignal(str, int, int, float, str, str)  # job_id, bytes, total, pct, speed, eta
+    progress_signal = pyqtSignal(str, int, int, float, str, str, str)  # job_id, bytes, total, pct, speed, eta, current_file
     finished_signal = pyqtSignal(str, bool, str)  # job_id, success, message
     log_signal = pyqtSignal(str, str)  # job_id, log_line
 
@@ -47,6 +47,7 @@ class TransferWorker(QThread):
         self._binary = rclone_binary
         self._process: Optional[subprocess.Popen] = None
         self._is_cancelled = False
+        self._current_file = ""
 
     def cancel(self) -> None:
         """Signal cancellation and terminate child process."""
@@ -54,8 +55,10 @@ class TransferWorker(QThread):
         if self._process and self._process.poll() is None:
             try:
                 self._process.terminate()
+                self._process.wait(timeout=0.5)
             except Exception:
                 pass
+        assert self._is_cancelled is True, "Worker must be marked cancelled"
 
     def run(self) -> None:
         """Execute rclone transfer subprocess with bounded stream reading."""
@@ -101,7 +104,20 @@ class TransferWorker(QThread):
                 continue
             self._process_single_line(line[:MAX_LINE_BUFFER_CHARS])
 
+        if self._process.stdout:
+            try:
+                self._process.stdout.close()
+            except Exception:
+                pass
+
         exit_code = self._process.poll()
+        if exit_code is None:
+            try:
+                exit_code = self._process.wait(timeout=0.5)
+            except Exception:
+                exit_code = -1
+
+        assert exit_code is not None, "Process exit code must be determined"
         if self._is_cancelled:
             self.finished_signal.emit(self._job.job_id, False, "Transfer cancelled by user")
         elif exit_code == 0:
@@ -112,16 +128,28 @@ class TransferWorker(QThread):
     def _process_single_line(self, line: str) -> None:
         """Parse JSON or text log line and emit progress signals."""
         assert isinstance(line, str), "Log line must be string"
+        assert self._job is not None, "Job must not be None"
         self.log_signal.emit(self._job.job_id, line.strip())
 
         try:
             record = json.loads(line)
+            if "object" in record and isinstance(record["object"], str):
+                self._current_file = record["object"]
+
             if "stats" in record and isinstance(record["stats"], dict):
                 stats = record["stats"]
                 cur_bytes = int(stats.get("bytes", 0))
                 tot_bytes = int(stats.get("totalBytes", 0))
                 speed_val = float(stats.get("speed", 0.0))
                 eta_val = stats.get("eta")
+
+                transferring = stats.get("transferring")
+                if transferring and isinstance(transferring, list) and len(transferring) > 0:
+                    first = transferring[0]
+                    if isinstance(first, dict) and "name" in first:
+                        self._current_file = str(first["name"])
+                        if len(transferring) > 1:
+                            self._current_file += f" (+{len(transferring) - 1})"
 
                 pct = (float(cur_bytes) / float(tot_bytes) * 100.0) if tot_bytes > 0 else 0.0
                 speed_str = format_rate(speed_val)
@@ -134,6 +162,7 @@ class TransferWorker(QThread):
                     pct,
                     speed_str,
                     eta_str,
+                    self._current_file,
                 )
         except json.JSONDecodeError:
             pass
@@ -255,9 +284,11 @@ class TransferManager(QObject):
         pct: float,
         speed: str,
         eta: str,
+        current_file: str,
     ) -> None:
         """Update job metrics from worker telemetry."""
         assert isinstance(job_id, str), "Job ID must be string"
+        assert isinstance(current_file, str), "Current file must be string"
         if job_id in self._jobs:
             job = self._jobs[job_id]
             job.bytes_transferred = cur_b
@@ -265,11 +296,14 @@ class TransferManager(QObject):
             job.percentage = pct
             job.speed_str = speed
             job.eta_str = eta
+            if current_file:
+                job.current_file = current_file
             self.job_updated.emit(job_id)
 
     def _on_worker_finished(self, job_id: str, success: bool, message: str) -> None:
         """Handle worker completion and trigger subsequent queued jobs."""
         assert isinstance(job_id, str), "Job ID must be string"
+        assert isinstance(message, str), "Message must be string"
         if job_id in self._active_workers:
             del self._active_workers[job_id]
 
@@ -280,6 +314,9 @@ class TransferManager(QObject):
             job.error_message = message if not success else ""
             if success:
                 job.percentage = 100.0
+                job.current_file = "Completed"
+            else:
+                job.current_file = "Failed"
             self._history.append(job_id)
             self.job_updated.emit(job_id)
 
