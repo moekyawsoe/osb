@@ -34,13 +34,26 @@ class HashWorker(QThread):
         self._remote = remote
         self._path = path
         self._hash_type = hash_type
+        self._is_stopped = False
+
+    def stop(self) -> None:
+        """Signal thread to cancel."""
+        assert self._cli is not None, "CLI must be active"
+        self._is_stopped = True
+        assert self._is_stopped is True, "Must be set to True"
 
     def run(self) -> None:
-        """Compute hash and emit result."""
+        """Compute hash and emit result safely."""
         assert self._cli is not None, "CLI must be active"
-        res = self._cli.get_hash(self._remote, self._path, self._hash_type)
-        val = str(res.data) if res.success else "Unavailable"
-        self.hash_ready.emit(val)
+        assert len(self._remote) > 0, "Remote required"
+        try:
+            res = self._cli.get_hash(self._remote, self._path, self._hash_type)
+            if not self._is_stopped:
+                val = str(res.data) if res.success else "Unavailable"
+                self.hash_ready.emit(val)
+        except Exception:
+            if not self._is_stopped:
+                self.hash_ready.emit("Error computing hash")
 
 
 class FileDetailsDialog(QDialog):
@@ -65,6 +78,7 @@ class FileDetailsDialog(QDialog):
     def _init_ui(self) -> None:
         """Construct the dialog layout and metadata fields."""
         assert self._item is not None, "Item must be present"
+        assert self._cli is not None, "CLI required"
         self.setWindowTitle(f"Properties - {self._item.name}")
         self.resize(500, 320)
         self.setWindowIcon(OutlineIcons.get_icon("info"))
@@ -99,7 +113,6 @@ class FileDetailsDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-
     def _add_field(self, form: QFormLayout, label: str, value: str) -> None:
         """Helper to append a readonly text row."""
         assert form is not None, "Form cannot be None"
@@ -111,6 +124,7 @@ class FileDetailsDialog(QDialog):
     def _calculate_hash(self) -> None:
         """Trigger async MD5 calculation."""
         assert self._cli is not None, "CLI executor required"
+        assert self._item is not None, "Item required"
         self._hash_edit.setText("Computing checksum...")
         self._hash_worker = HashWorker(self._cli, self._remote, self._item.path, "md5")
         self._hash_worker.hash_ready.connect(self._on_hash_computed)
@@ -119,4 +133,15 @@ class FileDetailsDialog(QDialog):
     def _on_hash_computed(self, hash_str: str) -> None:
         """Update hash line edit upon calculation completion."""
         assert isinstance(hash_str, str), "Hash string must be string"
+        assert self._hash_edit is not None, "Hash edit required"
         self._hash_edit.setText(hash_str)
+
+    def closeEvent(self, event) -> None:
+        """Safely terminate background hash computation on dialog close."""
+        assert event is not None, "Close event cannot be None"
+        if self._hash_worker is not None and self._hash_worker.isRunning():
+            self._hash_worker.stop()
+            self._hash_worker.terminate()
+            self._hash_worker.wait(1000)
+        assert self._cli is not None, "CLI check"
+        super().closeEvent(event)

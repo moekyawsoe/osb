@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 
 
 from osb.core.constants import MAX_ITEMS_PER_DIR
+from osb.core.logger import log_action, log_error
 from osb.core.models import StorageItem
 from osb.core.rclone_cli import RcloneCli
 from osb.core.utils import format_bytes
@@ -245,8 +246,10 @@ class PanelBrowser(QWidget):
 
         if not success:
             self.set_status_message(f"Error: {err}", is_error=True)
+            log_error("PanelBrowser", f"Failed loading {self._current_remote}:{self._current_path}: {err[:100]}")
             return
 
+        log_action("PanelBrowser", f"Loaded {len(items)} items from {self._current_remote}:{self._current_path or '/'}")
         bound_count = min(len(self._items), MAX_ITEMS_PER_DIR)
         for i in range(bound_count):
             item = self._items[i]
@@ -321,6 +324,7 @@ class PanelBrowser(QWidget):
                 bname = dlg.get_bucket_name()
                 res = self._cli.make_bucket_or_dir(self._current_remote, bname)
                 if res.success:
+                    log_action("PanelBrowser", f"Created bucket '{bname}' on '{self._current_remote}'")
                     self.refresh()
                 else:
                     QMessageBox.critical(self, "Error", f"Failed to create bucket: {res.message}")
@@ -331,6 +335,7 @@ class PanelBrowser(QWidget):
                 new_path = f"{self._current_path}/{name.strip()}"
                 res = self._cli.make_bucket_or_dir(self._current_remote, new_path)
                 if res.success:
+                    log_action("PanelBrowser", f"Created folder '{new_path}' on '{self._current_remote}'")
                     self.refresh()
                 else:
                     QMessageBox.critical(self, "Error", f"Failed to create folder: {res.message}")
@@ -353,6 +358,7 @@ class PanelBrowser(QWidget):
 
         for it in items:
             self._cli.delete_item(self._current_remote, it.path, is_dir=it.is_dir, purge=True)
+        log_action("PanelBrowser", f"Deleted {len(items)} item(s) from '{self._current_remote}'")
         self.refresh()
 
     def _show_selected_properties(self) -> None:

@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from typing import List, Optional
 
 from osb.core.constants import (
@@ -23,8 +24,10 @@ from osb.core.constants import (
     MAX_SUBPROCESS_WAIT_TICKS,
     TEST_CONN_TIMEOUT_SEC,
 )
+from osb.core.logger import log_action, log_error
 from osb.core.models import OperationResult, StorageItem
 from osb.core.utils import build_rclone_target
+
 
 
 class RcloneCli:
@@ -53,6 +56,10 @@ class RcloneCli:
         assert timeout_sec > 0 and timeout_sec <= 300, "Timeout within [1, 300] sec"
 
         cmd = [self._binary] + args
+        cmd_str = f"rclone {' '.join(args)}"
+        log_action("RcloneCli", f"Executing: {cmd_str}")
+        start_t = time.time()
+
         try:
             proc = subprocess.run(
                 cmd,
@@ -61,16 +68,22 @@ class RcloneCli:
                 timeout=timeout_sec,
                 check=False,
             )
+            elapsed = time.time() - start_t
             stdout = proc.stdout[:MAX_OUTPUT_BUFFER_BYTES]
             stderr = proc.stderr[:MAX_OUTPUT_BUFFER_BYTES]
 
             if proc.returncode == 0:
+                log_action("RcloneCli", f"Success ({elapsed:.2f}s): {cmd_str}")
                 return OperationResult(success=True, message="Success", data=stdout)
+
             err_msg = stderr.strip() if stderr.strip() else f"Exit code {proc.returncode}"
+            log_error("RcloneCli", f"Failed ({elapsed:.2f}s): {cmd_str} -> {err_msg[:200]}")
             return OperationResult(success=False, message=err_msg, data=stdout)
         except subprocess.TimeoutExpired:
+            log_error("RcloneCli", f"Timeout ({timeout_sec}s): {cmd_str}")
             return OperationResult(success=False, message=f"Command timed out after {timeout_sec}s")
         except Exception as exc:
+            log_error("RcloneCli", f"Exception on {cmd_str}: {str(exc)}")
             return OperationResult(success=False, message=f"Execution error: {str(exc)}")
 
     def test_connection(self, remote: str) -> OperationResult:
@@ -79,11 +92,15 @@ class RcloneCli:
         target = build_rclone_target(remote, "")
         assert ":" in target or target.startswith("/"), "Target must be formatted"
 
+        log_action("RcloneCli", f"Testing connection to remote '{remote}'...")
         args = ["lsd", target, "--timeout", f"{TEST_CONN_TIMEOUT_SEC}s", "--max-depth", "1"]
         res = self.execute_command(args, timeout_sec=TEST_CONN_TIMEOUT_SEC + 5)
         if res.success:
+            log_action("RcloneCli", f"Connection verified for '{remote}'")
             return OperationResult(success=True, message=f"Connection to '{remote}' verified.")
+        log_error("RcloneCli", f"Connection test failed for '{remote}': {res.message[:150]}")
         return OperationResult(success=False, message=f"Connection failed: {res.message}")
+
 
     def list_items(self, remote: str, path: str) -> OperationResult:
         """List items inside a remote bucket or directory as structured StorageItems."""

@@ -298,3 +298,14 @@ class OutlineIcons:
         path.lineTo(7, 19)
         path.closeSubpath()
         p.drawPath(path)
+
+    @staticmethod
+    def _draw_terminal(p: QPainter) -> None:
+        """Draw outline terminal prompt window."""
+        assert p is not None, "Painter must not be None"
+        assert p.isActive(), "Painter must be active"
+        p.drawRoundedRect(QRectF(3, 4, 18, 16), 2, 2)
+        p.drawLine(QPointF(6, 9), QPointF(9, 12))
+        p.drawLine(QPointF(9, 12), QPointF(6, 15))
+        p.drawLine(QPointF(11, 15), QPointF(16, 15))
+

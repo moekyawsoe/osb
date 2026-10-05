@@ -103,15 +103,28 @@ class BucketStatsWorker(QThread):
         self._cli = cli
         self._remote = remote
         self._bucket = bucket
+        self._is_stopped = False
+
+    def stop(self) -> None:
+        """Signal thread cancellation."""
+        assert self._cli is not None, "CLI executor required"
+        self._is_stopped = True
+        assert self._is_stopped is True, "Must be set to True"
 
     def run(self) -> None:
-        """Execute rclone size and emit telemetry."""
+        """Execute rclone size and emit telemetry safely."""
         assert self._cli is not None, "CLI executor required"
-        res = self._cli.get_size_stats(self._remote, self._bucket)
-        if res.success and isinstance(res.data, dict):
-            self.stats_ready.emit(True, res.data, "")
-        else:
-            self.stats_ready.emit(False, {}, res.message)
+        assert len(self._bucket) > 0, "Bucket must be specified"
+        try:
+            res = self._cli.get_size_stats(self._remote, self._bucket)
+            if not self._is_stopped:
+                if res.success and isinstance(res.data, dict):
+                    self.stats_ready.emit(True, res.data, "")
+                else:
+                    self.stats_ready.emit(False, {}, res.message)
+        except Exception as exc:
+            if not self._is_stopped:
+                self.stats_ready.emit(False, {}, f"Stats error: {str(exc)}")
 
 
 class BucketPropertiesDialog(QDialog):
@@ -126,9 +139,11 @@ class BucketPropertiesDialog(QDialog):
         self._worker: Optional[BucketStatsWorker] = None
         self._init_ui()
         self._load_stats()
+        assert self._worker is not None, "Worker must be initialized"
 
     def _init_ui(self) -> None:
         """Construct the properties dialog."""
+        assert self._remote is not None and self._bucket is not None, "Remote and bucket required"
         self.setWindowTitle(f"Bucket Properties - {self._bucket}")
         self.resize(440, 240)
         self.setWindowIcon(OutlineIcons.get_icon("bucket"))
@@ -148,11 +163,12 @@ class BucketPropertiesDialog(QDialog):
             close_btn.setIcon(OutlineIcons.get_icon("cross"))
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-
+        assert layout.count() >= 2, "Layout must have form and buttons"
 
     def _add_field(self, form: QFormLayout, label: str, val: str) -> QLineEdit:
         """Helper to append readonly field."""
         assert form is not None, "Form cannot be None"
+        assert isinstance(label, str), "Label must be string"
         edit = QLineEdit(val)
         edit.setReadOnly(True)
         form.addRow(label, edit)
@@ -161,6 +177,7 @@ class BucketPropertiesDialog(QDialog):
     def _load_stats(self) -> None:
         """Start async size calculation worker."""
         assert self._cli is not None, "CLI executor required"
+        assert len(self._bucket) > 0, "Bucket must be non-empty"
         self._worker = BucketStatsWorker(self._cli, self._remote, self._bucket)
         self._worker.stats_ready.connect(self._on_stats_ready)
         self._worker.start()
@@ -168,6 +185,7 @@ class BucketPropertiesDialog(QDialog):
     def _on_stats_ready(self, success: bool, stats: dict, err: str) -> None:
         """Update display with fetched statistics."""
         assert self._count_edit is not None and self._size_edit is not None, "Fields cannot be None"
+        assert isinstance(success, bool), "Success must be boolean"
         if success:
             count = int(stats.get("count", 0))
             bytes_val = int(stats.get("bytes", 0))
@@ -176,3 +194,13 @@ class BucketPropertiesDialog(QDialog):
         else:
             self._count_edit.setText("Failed to calculate")
             self._size_edit.setText(err or "Error calculating size")
+
+    def closeEvent(self, event) -> None:
+        """Ensure background worker is safely terminated before closing."""
+        assert event is not None, "Event cannot be None"
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.stop()
+            self._worker.terminate()
+            self._worker.wait(1000)
+        assert self._cli is not None, "CLI check"
+        super().closeEvent(event)

@@ -8,6 +8,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from osb.core.constants import MAX_REMOTE_COUNT, PROVIDER_S3
+from osb.core.logger import log_action, log_error
 from osb.core.models import OperationResult, RemoteConfig
 from osb.core.rclone_cli import RcloneCli
 
@@ -93,6 +94,10 @@ class ConfigManager:
 
         res = self._cli.execute_command(args, timeout_sec=15)
         assert isinstance(res, OperationResult), "Must return OperationResult"
+        if res.success:
+            log_action("ConfigManager", f"Remote '{config.name}' saved successfully")
+        else:
+            log_error("ConfigManager", f"Failed to save remote '{config.name}': {res.message[:120]}")
         return res
 
     def delete_remote(self, name: str) -> OperationResult:
@@ -100,11 +105,16 @@ class ConfigManager:
         assert isinstance(name, str) and len(name) > 0, "Remote name cannot be empty"
         res = self._cli.execute_command(["config", "delete", name], timeout_sec=10)
         assert isinstance(res, OperationResult), "Must return OperationResult"
+        if res.success:
+            log_action("ConfigManager", f"Remote '{name}' deleted successfully")
+        else:
+            log_error("ConfigManager", f"Failed to delete remote '{name}': {res.message[:120]}")
         return res
 
     def test_remote(self, name: str) -> OperationResult:
         """Validate credentials and reachability for given remote."""
         assert isinstance(name, str) and len(name) > 0, "Remote name cannot be empty"
+        log_action("ConfigManager", f"Testing connectivity for remote '{name}'")
         res = self._cli.test_connection(name)
         assert isinstance(res, OperationResult), "Must return OperationResult"
         return res

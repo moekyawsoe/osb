@@ -24,6 +24,7 @@ from osb.gui.dual_panel import DualPanelWidget
 from osb.gui.jobs_view import JobsView
 from osb.gui.outline_icons import OutlineIcons
 from osb.gui.remote_dialog import RemoteManagerDialog
+from osb.gui.log_dialog import ActionLogsDialog
 
 
 class MainWindow(QMainWindow):
@@ -106,6 +107,11 @@ class MainWindow(QMainWindow):
 
         max_right_act = view_menu.addAction(OutlineIcons.get_icon("arrow_right"), "Maximize Right Panel")
         max_right_act.triggered.connect(lambda: self._dual_panel.maximize_panel(False))
+
+        view_menu.addSeparator()
+        logs_act = view_menu.addAction(OutlineIcons.get_icon("terminal"), "Action Process Logs...")
+        logs_act.setShortcut("Ctrl+L")
+        logs_act.triggered.connect(self._open_action_logs)
         assert view_menu is not None, "View menu created"
 
     def _setup_help_menu(self, menubar) -> None:
@@ -135,6 +141,10 @@ class MainWindow(QMainWindow):
         tb_jobs = toolbar.addAction(OutlineIcons.get_icon("minus"), "Jobs")
         tb_jobs.setToolTip("Toggle / Minimize Transfer Jobs panel (Ctrl+J)")
         tb_jobs.triggered.connect(self._toggle_jobs_panel)
+
+        tb_logs = toolbar.addAction(OutlineIcons.get_icon("terminal"), "Logs")
+        tb_logs.setToolTip("Action Process Logs (Ctrl+L)")
+        tb_logs.triggered.connect(self._open_action_logs)
         assert toolbar is not None, "Toolbar created"
 
     def _init_central_widget(self) -> None:
@@ -207,6 +217,13 @@ class MainWindow(QMainWindow):
             "• High Assertion Density & Strict Flow<br>"
             "• Clean Monochrome Outline Icon System",
         )
+
+    def _open_action_logs(self) -> None:
+        """Open modal action and process telemetry dialog."""
+        assert self._cli is not None, "CLI executor required"
+        dlg = ActionLogsDialog(self)
+        dlg.exec()
+        assert dlg is not None, "Dialog completed"
 
     def closeEvent(self, event) -> None:
         """Cleanly handle application window close."""

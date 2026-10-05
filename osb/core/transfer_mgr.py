@@ -26,6 +26,7 @@ from osb.core.constants import (
     MAX_STATS_PARSE_LINES,
     MAX_TRANSFER_QUEUE_SIZE,
 )
+from osb.core.logger import log_action, log_error
 from osb.core.models import JobStatus, OperationResult, TransferJob, TransferOperation
 from osb.core.utils import build_rclone_target, format_bytes, format_rate
 
@@ -185,6 +186,10 @@ class TransferManager(QObject):
 
         self._jobs[job_id] = job
         self._queue.append(job_id)
+        log_action(
+            "TransferManager",
+            f"Queued {op.value.upper()}: {src_remote}:{src_path} -> {dst_remote}:{dst_path} [{job_id}]",
+        )
         self.job_added.emit(job)
         self._schedule_next()
         return OperationResult(success=True, message="Job queued", data=job)
@@ -200,12 +205,14 @@ class TransferManager(QObject):
             worker = self._active_workers[job_id]
             worker.cancel()
             job.status = JobStatus.CANCELLED
+            log_action("TransferManager", f"Cancelled in-progress job {job_id}")
             self.job_updated.emit(job_id)
             return OperationResult(success=True, message=f"Cancellation sent to {job_id}")
 
         if job_id in self._queue:
             self._queue.remove(job_id)
             job.status = JobStatus.CANCELLED
+            log_action("TransferManager", f"Cancelled queued job {job_id}")
             self.job_updated.emit(job_id)
             return OperationResult(success=True, message=f"Queued job {job_id} cancelled")
 
@@ -233,6 +240,10 @@ class TransferManager(QObject):
         worker.log_signal.connect(self._on_worker_log)
 
         self._active_workers[next_job_id] = worker
+        log_action(
+            "TransferManager",
+            f"Started {job.op.value.upper()}: {job.src_remote}:{job.src_path} -> {job.dst_remote}:{job.dst_path} [{next_job_id}]",
+        )
         self.job_updated.emit(next_job_id)
         worker.start()
 
@@ -271,6 +282,11 @@ class TransferManager(QObject):
                 job.percentage = 100.0
             self._history.append(job_id)
             self.job_updated.emit(job_id)
+
+        if success:
+            log_action("TransferManager", f"Transfer job {job_id} finished successfully")
+        else:
+            log_error("TransferManager", f"Transfer job {job_id} failed: {message[:140]}")
 
         self.job_finished.emit(job_id, success, message)
         self._schedule_next()
