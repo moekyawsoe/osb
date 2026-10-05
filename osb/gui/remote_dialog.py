@@ -232,7 +232,6 @@ class EditRemoteDialog(QDialog):
         assert cfg is not None, "Config cannot be None"
         assert len(cfg.name) > 0, "Config name required"
         self._name_edit.setText(cfg.name)
-        self._name_edit.setReadOnly(True)
         self._provider_combo.setCurrentText(cfg.provider or "Other")
         self._endpoint_edit.setText(cfg.endpoint)
         self._region_edit.setText(cfg.region)
@@ -438,6 +437,8 @@ class RemoteManagerDialog(QDialog):
         dlg = EditRemoteDialog(self._mgr, config=cfg_to_edit, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             cfg = dlg.get_remote_config()
+            if cfg.name != name:
+                self._mgr.delete_remote(name)
             self._mgr.save_remote(cfg)
             self._refresh_list()
 
