@@ -57,11 +57,13 @@ class DualPanelWidget(QWidget):
         self._right_panel = PanelBrowser(self._cli, "Destination Panel", parent=self)
         self._splitter.addWidget(self._right_panel)
 
+        self._splitter.setChildrenCollapsible(False)
         self._splitter.setStretchFactor(0, 10)
         self._splitter.setStretchFactor(1, 0)
         self._splitter.setStretchFactor(2, 10)
 
         main_layout.addWidget(self._splitter)
+
 
     def _create_center_bar(self) -> QWidget:
         """Construct central transfer button strip."""
@@ -167,4 +169,23 @@ class DualPanelWidget(QWidget):
         assert self._left_panel is not None and self._right_panel is not None, "Panels required"
         self._left_panel.close()
         self._right_panel.close()
+
+    def maximize_panel(self, left: bool) -> None:
+        """Expand one explorer panel while minimizing the other."""
+        assert self._splitter is not None, "Splitter must be active"
+        total = sum(self._splitter.sizes())
+        bar_w = 72
+        if left:
+            self._splitter.setSizes([total - bar_w - 60, bar_w, 60])
+        else:
+            self._splitter.setSizes([60, bar_w, total - bar_w - 60])
+
+    def equalize_panels(self) -> None:
+        """Restore balanced 50/50 division between panels."""
+        assert self._splitter is not None, "Splitter must be active"
+        total = sum(self._splitter.sizes())
+        bar_w = 72
+        half = (total - bar_w) // 2
+        self._splitter.setSizes([half, bar_w, half])
+
 

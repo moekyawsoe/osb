@@ -17,11 +17,13 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+
 
 from osb.core.constants import MAX_ITEMS_PER_DIR
 from osb.core.models import StorageItem
@@ -83,10 +85,13 @@ class PanelBrowser(QWidget):
         self._table = self._create_table_widget()
         layout.addWidget(self._table)
 
+        self.setMinimumWidth(260)
         self._status_label = QLabel("Ready")
+        self._status_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._status_label.setStyleSheet("color: #6b7280; font-size: 11px;")
         layout.addWidget(self._status_label)
         assert self._table is not None, "Table must be initialized"
+
 
     def _create_nav_row(self) -> QHBoxLayout:
         """Create navigation row with remote selector and path edit."""
@@ -200,6 +205,16 @@ class PanelBrowser(QWidget):
         self._path_edit.setText(self._current_path)
         self.refresh()
 
+    def set_status_message(self, text: str, is_error: bool = False) -> None:
+        """Update status line safely without expanding parent widget size."""
+        assert isinstance(text, str), "Status text must be string"
+        assert self._status_label is not None, "Status label required"
+        short_txt = (text[:90] + "...") if len(text) > 90 else text
+        self._status_label.setText(short_txt)
+        self._status_label.setToolTip(text if len(text) > 90 else "")
+        color = "#f87171" if is_error else "#9ca3af"
+        self._status_label.setStyleSheet(f"color: {color}; font-size: 11px;")
+
     def refresh(self) -> None:
         """Reload contents of current remote and path."""
         assert self._cli is not None, "CLI executor required"
@@ -209,7 +224,7 @@ class PanelBrowser(QWidget):
         if self._worker and self._worker.isRunning():
             self._worker.wait(200)
 
-        self._status_label.setText(f"Loading {self._current_remote}:{self._current_path}...")
+        self.set_status_message(f"Loading {self._current_remote}:{self._current_path}...")
         self._worker = ListWorker(self._cli, self._current_remote, self._current_path)
         self._worker.items_ready.connect(self._on_items_loaded)
         self._worker.start()
@@ -222,7 +237,6 @@ class PanelBrowser(QWidget):
             self._worker.wait(300)
         super().closeEvent(event)
 
-
     def _on_items_loaded(self, success: bool, items: list, err: str) -> None:
         """Populate table with fetched items."""
         assert self._table is not None, "Table cannot be None"
@@ -230,7 +244,7 @@ class PanelBrowser(QWidget):
         self._items = items if success else []
 
         if not success:
-            self._status_label.setText(f"Error: {err}")
+            self.set_status_message(f"Error: {err}", is_error=True)
             return
 
         bound_count = min(len(self._items), MAX_ITEMS_PER_DIR)
@@ -250,8 +264,9 @@ class PanelBrowser(QWidget):
             type_str = "Bucket" if item.is_bucket else ("Folder" if item.is_dir else (item.mime_type or "File"))
             self._table.setItem(row, 3, QTableWidgetItem(type_str))
 
-        self._status_label.setText(f"{len(self._items)} item(s) in {self._current_remote}:{self._current_path or '/'}")
+        self.set_status_message(f"{len(self._items)} item(s) in {self._current_remote}:{self._current_path or '/'}")
         self.path_changed.emit(self._current_remote, self._current_path)
+
 
     def _on_table_double_click(self) -> None:
         """Enter folder or bucket upon double click."""

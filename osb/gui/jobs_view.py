@@ -66,42 +66,71 @@ class JobsView(QWidget):
 
     def _init_ui(self) -> None:
         """Initialize the jobs monitoring panel layout."""
+        assert self._mgr is not None, "Manager cannot be None"
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
+        layout.addLayout(self._create_header_layout())
+        self._table = self._create_jobs_table()
+        layout.addWidget(self._table)
+        assert self._table is not None, "Table must be created"
+
+    def _create_header_layout(self) -> QHBoxLayout:
+        """Create header toolbar with title, toggle, and clear buttons."""
         header_layout = QHBoxLayout()
         title = QLabel("BACKGROUND TRANSFER JOBS")
         title.setStyleSheet("font-weight: bold; font-size: 11px; color: #9ca3af; letter-spacing: 0.5px;")
         header_layout.addWidget(title)
         header_layout.addStretch()
 
+        self._is_collapsed = False
+        self._toggle_btn = QPushButton("Collapse")
+        self._toggle_btn.setIcon(OutlineIcons.get_icon("minus"))
+        self._toggle_btn.setToolTip("Minimize / Collapse transfer jobs view")
+        self._toggle_btn.clicked.connect(self.toggle_collapsed)
+        header_layout.addWidget(self._toggle_btn)
+
         clear_btn = QPushButton("Clear Completed")
         clear_btn.setIcon(OutlineIcons.get_icon("trash"))
         clear_btn.clicked.connect(self._clear_completed)
         header_layout.addWidget(clear_btn)
-        layout.addLayout(header_layout)
+        return header_layout
 
-        self._table = QTableWidget()
-        self._table.setColumnCount(8)
-        self._table.setHorizontalHeaderLabels([
+    def _create_jobs_table(self) -> QTableWidget:
+        """Construct the jobs table widget."""
+        table = QTableWidget()
+        table.setColumnCount(8)
+        table.setHorizontalHeaderLabels([
             "ID", "Type", "Source", "Destination", "Progress", "Speed", "ETA", "Status"
         ])
-        header = self._table.horizontalHeader()
+        header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self._table.setColumnWidth(4, 140)
+        table.setColumnWidth(4, 140)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
 
-        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self._table.doubleClicked.connect(self._on_row_double_click)
-        layout.addWidget(self._table)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.doubleClicked.connect(self._on_row_double_click)
+        return table
+
+    def toggle_collapsed(self) -> None:
+        """Toggle table visibility between collapsed and expanded states."""
+        assert self._table is not None, "Table must be initialized"
+        self._is_collapsed = not self._is_collapsed
+        self._table.setVisible(not self._is_collapsed)
+        icon_name = "plus" if self._is_collapsed else "minus"
+        btn_text = "Expand" if self._is_collapsed else "Collapse"
+        self._toggle_btn.setIcon(OutlineIcons.get_icon(icon_name))
+        self._toggle_btn.setText(btn_text)
+        assert self._toggle_btn is not None, "Toggle button required"
+
 
     def _connect_signals(self) -> None:
         """Bind transfer manager signals to UI slots."""

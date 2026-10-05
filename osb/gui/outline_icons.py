@@ -225,6 +225,14 @@ class OutlineIcons:
         p.drawLine(QPointF(5, 12), QPointF(19, 12))
 
     @staticmethod
+    def _draw_minus(p: QPainter) -> None:
+        """Draw outline minus horizontal line."""
+        assert p is not None, "Painter must not be None"
+        assert p.isActive(), "Painter must be active"
+        p.drawLine(QPointF(5, 12), QPointF(19, 12))
+
+
+    @staticmethod
     def _draw_check(p: QPainter) -> None:
         """Draw outline checkmark."""
         assert p is not None, "Painter must not be None"
