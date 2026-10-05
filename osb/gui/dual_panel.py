@@ -131,22 +131,41 @@ class DualPanelWidget(QWidget):
             self._mgr.submit_job(op, src_remote, it.path, dst_remote, sub_dst)
 
     def _trigger_sync(self) -> None:
-        """Trigger directory synchronization from Left to Right."""
+        """Trigger directory synchronization from Left to Right with safety guards."""
+        assert self._left_panel is not None, "Left panel required"
+        assert self._right_panel is not None, "Right panel required"
         src_remote = self._left_panel.get_current_remote()
-        src_path = self._left_panel.get_current_path()
+        src_path = self._left_panel.get_current_path().strip("/")
         dst_remote = self._right_panel.get_current_remote()
-        dst_path = self._right_panel.get_current_path()
+        dst_path = self._right_panel.get_current_path().strip("/")
 
         if not src_remote or not dst_remote:
             QMessageBox.warning(self, "Sync Incomplete", "Both source and destination must be selected.")
             return
 
-        confirm = QMessageBox.question(
+        # NASA Safety Rule: Block root-level sync across all buckets
+        if not src_path or not dst_path:
+            QMessageBox.critical(
+                self,
+                "Root Sync Prohibited",
+                "Root-level sync across entire object storage remotes is blocked for safety.\n\n"
+                "Rclone sync deletes any files in destination that do not exist in source.\n"
+                "Please navigate inside a specific bucket or folder on both sides.",
+            )
+            return
+
+        confirm = QMessageBox.warning(
             self,
-            "Confirm Sync",
-            f"Are you sure you want to synchronize:\n{src_remote}:{src_path}\n->\n{dst_remote}:{dst_path}\n"
-            "Warning: Destination files missing in source may be overwritten!",
+            "Confirm Destructive Sync",
+            f"Are you sure you want to mirror-sync:\n"
+            f"Source: {src_remote}:{src_path}\n"
+            f"Destination: {dst_remote}:{dst_path}\n\n"
+            "DANGER: Rclone Sync will make the destination identical to the source.\n"
+            "Any files in the destination that do not exist in the source will be PERMANENTLY DELETED.\n\n"
+            "(If you want to copy files without deleting anything, use 'Copy →' instead.)\n\n"
+            "Do you want to proceed?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
         if confirm == QMessageBox.StandardButton.Yes:
             self._mgr.submit_job(TransferOperation.SYNC, src_remote, src_path, dst_remote, dst_path)
