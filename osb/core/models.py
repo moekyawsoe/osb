@@ -40,7 +40,7 @@ class StorageItem:
     def __post_init__(self) -> None:
         """NASA Rule 5: Validate invariant properties upon construction."""
         assert isinstance(self.name, str) and len(self.name) > 0, "Name must be non-empty"
-        assert self.size >= 0, "Size must be non-negative"
+        assert self.size >= -1, "Size must be >= -1 (unknown or directory sizes use -1)"
 
 
 @dataclass

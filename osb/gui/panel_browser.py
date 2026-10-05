@@ -245,7 +245,8 @@ class PanelBrowser(QWidget):
         self._items = items if success else []
 
         if not success:
-            self.set_status_message(f"Error: {err}", is_error=True)
+            hint = " (Tip: If bucket-scoped, enter bucket name in path)" if ("403" in err and not self._current_path) else ""
+            self.set_status_message(f"Error: {err}{hint}", is_error=True)
             log_error("PanelBrowser", f"Failed loading {self._current_remote}:{self._current_path}: {err[:100]}")
             return
 

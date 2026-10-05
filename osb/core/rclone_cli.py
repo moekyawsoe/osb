@@ -172,10 +172,11 @@ class RcloneCli:
                     continue
                 is_dir = bool(entry.get("IsDir", False))
                 item_path = f"{base_path.rstrip('/')}/{name}".lstrip("/") if base_path else name
+                raw_size = int(entry.get("Size", 0))
                 item = StorageItem(
                     name=name,
                     path=item_path,
-                    size=int(entry.get("Size", 0)),
+                    size=max(0, raw_size) if is_dir else raw_size,
                     is_dir=is_dir,
                     is_bucket=is_root and is_dir,
                     mod_time=str(entry.get("ModTime", "")),
