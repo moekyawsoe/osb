@@ -91,6 +91,8 @@ class ConfigManager:
 
         args.extend(["force_path_style", "true" if config.force_path_style else "false"])
         args.extend(["env_auth", "true" if config.env_auth else "false"])
+        if config.type == "s3":
+            args.extend(["sign_accept_encoding", "false"])
 
         res = self._cli.execute_command(args, timeout_sec=15)
         assert isinstance(res, OperationResult), "Must return OperationResult"
@@ -181,6 +183,15 @@ class ConfigManager:
                 "provider": "Ceph",
                 "endpoint": "http://ceph-rgw:8000",
                 "region": "default",
+                "path_style": "true",
+            },
+            {
+                "id": "rustfs",
+                "label": "RustFS / Cloudflare Proxy S3",
+                "type": PROVIDER_S3,
+                "provider": "Other",
+                "endpoint": "https://drive-api.bdata.com.mm",
+                "region": "us-east-1",
                 "path_style": "true",
             },
             {
