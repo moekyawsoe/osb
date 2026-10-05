@@ -168,6 +168,9 @@ class TransferWorker(QThread):
             pass
 
 
+from osb.core.rclone_detector import find_rclone_binary
+
+
 class TransferManager(QObject):
     """Central transfer manager orchestrating queued, active, and completed jobs."""
 
@@ -178,7 +181,7 @@ class TransferManager(QObject):
     def __init__(self, rclone_binary: Optional[str] = None) -> None:
         """Initialize transfer manager with NASA bounded structures."""
         super().__init__()
-        self._binary = rclone_binary or shutil.which("rclone") or "/usr/bin/rclone"
+        self._binary = find_rclone_binary(rclone_binary) or rclone_binary or "/usr/bin/rclone"
         assert os.path.exists(self._binary), f"rclone binary not found at {self._binary}"
 
         # NASA Rule 3: Fixed bounds on queues and histories

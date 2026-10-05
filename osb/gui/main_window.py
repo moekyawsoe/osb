@@ -25,6 +25,7 @@ from osb.gui.jobs_view import JobsView
 from osb.gui.outline_icons import OutlineIcons
 from osb.gui.remote_dialog import RemoteManagerDialog
 from osb.gui.log_dialog import ActionLogsDialog
+from osb.gui.rclone_dialog import RcloneSetupDialog
 
 
 class MainWindow(QMainWindow):
@@ -118,6 +119,9 @@ class MainWindow(QMainWindow):
         """Configure help menu actions."""
         assert menubar is not None, "Menubar required"
         help_menu = menubar.addMenu("Help")
+        rclone_act = help_menu.addAction(OutlineIcons.get_icon("server"), "Rclone Setup & Downloads...")
+        rclone_act.triggered.connect(self._show_rclone_guide)
+        help_menu.addSeparator()
         about_act = help_menu.addAction(OutlineIcons.get_icon("info"), "About")
         about_act.triggered.connect(self._show_about)
         assert help_menu is not None, "Help menu created"
@@ -217,6 +221,13 @@ class MainWindow(QMainWindow):
             "• High Assertion Density & Strict Flow<br>"
             "• Clean Monochrome Outline Icon System",
         )
+
+    def _show_rclone_guide(self) -> None:
+        """Display rclone installation guide and cross-platform download links."""
+        assert self._cli is not None, "CLI executor required"
+        dlg = RcloneSetupDialog(custom_path=self._cli._binary, parent=self)
+        dlg.exec()
+        assert dlg is not None, "Dialog closed"
 
     def _open_action_logs(self) -> None:
         """Open modal action and process telemetry dialog."""

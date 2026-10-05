@@ -30,12 +30,15 @@ from osb.core.utils import build_rclone_target
 
 
 
+from osb.core.rclone_detector import find_rclone_binary
+
+
 class RcloneCli:
     """Safe execution wrapper for rclone commands with bounded execution."""
 
     def __init__(self, rclone_binary: Optional[str] = None) -> None:
         """Initialize and verify rclone binary location."""
-        self._binary = rclone_binary or shutil.which("rclone") or "/usr/bin/rclone"
+        self._binary = find_rclone_binary(rclone_binary) or rclone_binary or "/usr/bin/rclone"
         assert self._binary is not None, "rclone binary path cannot be None"
         assert os.path.exists(self._binary), f"rclone not found at {self._binary}"
 
