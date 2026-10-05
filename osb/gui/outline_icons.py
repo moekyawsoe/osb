@@ -309,3 +309,11 @@ class OutlineIcons:
         p.drawLine(QPointF(9, 12), QPointF(6, 15))
         p.drawLine(QPointF(11, 15), QPointF(16, 15))
 
+    @staticmethod
+    def _draw_copy(p: QPainter) -> None:
+        """Draw outline copy overlapping rectangles."""
+        assert p is not None, "Painter must not be None"
+        assert p.isActive(), "Painter must be active"
+        p.drawRoundedRect(QRectF(8, 8, 12, 12), 2, 2)
+        p.drawPolyline([QPointF(5, 16), QPointF(5, 5), QPointF(16, 5)])
+
