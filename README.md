@@ -124,3 +124,26 @@ Run the complete test suite including the NASA JPL Power of 10 static analyzer:
 ```bash
 python3 -m unittest discover -s tests -p "test_*.py"
 ```
+
+---
+
+## Packaging & Releases (.deb, .exe, .dmg)
+
+OSB features automated multi-platform build scripts and a GitHub Actions CI/CD release pipeline that builds native release packages:
+
+| Platform | Format | Build Script | Output Artifact |
+| :--- | :--- | :--- | :--- |
+| **Linux** | Debian `.deb` / `.tar.gz` | `bash build_scripts/build_deb.sh 1.0.0` | `dist/osb_1.0.0_amd64.deb` |
+| **Windows** | Portable `.exe` / `.zip` | `pwsh build_scripts/build_exe.ps1` | `dist/OSB.exe`, `dist/OSB-windows-x64.zip` |
+| **macOS** | Disk Image `.dmg` / `.zip` | `bash build_scripts/build_dmg.sh` | `dist/OSB-macOS.dmg`, `dist/OSB-macOS.zip` |
+
+### Triggering a GitHub Actions Release
+
+To automatically build and publish release binaries for all 3 platforms:
+1. Create and push a tag:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+2. Or trigger manually from the GitHub Web UI via **Actions** $\to$ **Build & Release Multi-Platform Packages** $\to$ **Run workflow**.
+

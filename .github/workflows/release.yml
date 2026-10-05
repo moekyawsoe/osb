@@ -1,0 +1,173 @@
+name: Build & Release Multi-Platform Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g. v1.0.0)"
+        required: false
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux (.deb & tar.gz)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y rclone libegl1 libgl1 libxcb-cursor0 dpkg-dev
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller Pillow
+
+      - name: Build Debian Package
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "master" ] || [ "$VERSION" = "release" ]; then
+            VERSION="${{ github.event.inputs.tag_name || '1.0.0' }}"
+            VERSION="${VERSION#v}"
+          fi
+          bash build_scripts/build_deb.sh "$VERSION"
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: osb-linux
+          path: |
+            dist/*.deb
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (.exe & .zip)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller Pillow
+
+      - name: Build Windows Executable
+        run: |
+          pwsh build_scripts/build_exe.ps1
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: osb-windows
+          path: |
+            dist/OSB.exe
+            dist/OSB-windows-x64.zip
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS (.dmg & .zip)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller Pillow
+
+      - name: Build macOS DMG Package
+        run: |
+          bash build_scripts/build_dmg.sh
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: osb-macos
+          path: |
+            dist/OSB-macOS.dmg
+            dist/OSB-macOS.zip
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download All Platform Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          merge-multiple: true
+
+      - name: List Release Files
+        run: |
+          echo "=== Collected Release Binaries ==="
+          ls -lh release_assets
+
+      - name: Determine Release Tag
+        id: get_tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.tag_name || 'v1.0.0' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: OSB - Object Storage Bridge ${{ steps.get_tag.outputs.tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release_assets/*.deb
+            release_assets/*.tar.gz
+            release_assets/OSB.exe
+            release_assets/*windows*.zip
+            release_assets/*.dmg
+            release_assets/*macOS*.zip
+          body: |
+            ## OSB — Object Storage Bridge ${{ steps.get_tag.outputs.tag }}
+
+            Enterprise GUI for managing and transferring data across object storage servers (S3, MinIO, Ceph, RustFS), powered by the `rclone` engine and built in compliance with **NASA JPL The Power of 10 Safety-Critical Rules**.
+
+            ### Available Binaries:
+            * **Linux (Debian / Ubuntu / Mint)**: `osb_${{ steps.get_tag.outputs.tag }}_amd64.deb`
+            * **Linux (Portable)**: `osb-linux-x86_64.tar.gz`
+            * **Windows (Standalone Executable)**: `OSB.exe`
+            * **Windows (Zip Archive)**: `OSB-windows-x64.zip`
+            * **macOS (Installer Disk Image)**: `OSB-macOS.dmg`
+            * **macOS (App Bundle Zip)**: `OSB-macOS.zip`
